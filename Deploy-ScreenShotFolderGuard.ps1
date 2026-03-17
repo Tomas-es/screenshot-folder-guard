@@ -8,19 +8,23 @@ Write-Host "Installing Screenshots folder protection..."
 # 1. Locate or create the Screenshots folder
 $pictures = [Environment]::GetFolderPath("MyPictures")
 $screens = Join-Path $pictures "Screenshots"
+Write-Host "Deafault folder: $screens"
 
 if (-not (Test-Path $screens)) {
-    New-Item -Path $screens -ItemType Directory | Out-Null
+    Write-Host "Folder not found. Creating it..."
+    New-Item -Path $screens -ItemType Directory
 }
 
 # 2. Create .anchor file
 $anchor = Join-Path $screens ".ancla"
 if (-not (Test-Path $anchor)) {
-    New-Item -Path $anchor -ItemType File | Out-Null
+    Write-Host "Creating anchor file..."
+    New-Item -Path $anchor -ItemType File
 }
 
 # 3. Create VBScript in ProgramData
 $vbsPath = Join-Path $env:ProgramData "bloqueo_screenshots.vbs"
+Write-Host "Creating VBScript at $vbsPath..."
 
 $vbs = @"
 Set fso = CreateObject("Scripting.FileSystemObject")
@@ -30,7 +34,7 @@ Do
 Loop
 "@
 
-$vbs | Set-Content -Path $vbsPath -Encoding ASCII
+$vbs | Set-Content -Path $vbsPath -Encoding ASCII -ErrorAction Stop
 
 # 4. Hide files
 attrib +h "$anchor"
@@ -42,7 +46,7 @@ $taskName = "BloqueoScreenshots"
 # If it exists, delete it
 schtasks /Delete /TN $taskName /F > $null 2>&1
 
-# Create hidden task that runs at login
+# Create hidden task that runs at login and confirms its creation
 schtasks /Create `
     /TN "\aj\$taskName" `
     /TR "wscript.exe `"$vbsPath`"" `
@@ -50,8 +54,13 @@ schtasks /Create `
     /RL LIMITED `
     /RU $env:USERNAME `
     /F `
-    /IT `
-    /H
+    /IT
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Error al crear la tarea programada. Código de salida: $LASTEXITCODE"
+}
+
+# You should not show this message unless all steps succeeded.
 
 Write-Host ""
 Write-Host "==============================================="
